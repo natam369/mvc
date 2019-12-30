@@ -26,7 +26,7 @@ public class HotelController {
 	@Autowired
 	RoomService roomService;
 
-	@RequestMapping("/")
+	@RequestMapping("/hotels")
 	public String getHotels(ModelMap model) {
 		List<String> hotelnames = hotelService.getHotels();
 		model.put("hotels", hotelnames);
