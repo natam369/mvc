@@ -1,0 +1,70 @@
+node
+{
+    stage('GIT Checkout')
+    {
+        sh 'rm -rf mvc'  
+        sh 'git clone https://github.com/natam369/mvc.git'
+    }
+    stage('Maven Clean and Compile ')
+    { 
+         dir("/var/lib/jenkins/workspace/mystaywar/mvc/mystay/")
+            {
+                sh 'mvn clean compile'
+            }
+    }
+     stage('SonarQube Analysis'){
+           
+        withSonarQubeEnv('SonarQube'){
+            dir("/var/lib/jenkins/workspace/mystaywar/mvc/mystay/")
+            {
+         sh 'mvn sonar:sonar'
+            }
+        }
+        }
+       stage("Quality Gate"){
+          timeout(time: 1, unit: 'HOURS') {
+              def qg = waitForQualityGate()
+              if (qg.status != 'OK') {
+                  error "Pipeline aborted due to quality gate failure: ${qg.status}"
+              }
+          }
+      }  
+    stage('Maven Install')
+    {
+         dir("/var/lib/jenkins/workspace/mystaywar/mvc/mystay/")
+            {
+                sh 'mvn install'
+            }
+    }
+    stage('Jfrog Artifacory'){
+    script{
+        def server= Artifactory.server 'jenkins-server-artifactory'
+                    def uploadSpec= """{
+                        "files": [{
+                        "pattern": "/var/lib/jenkins/workspace/mystaywar/mvc/mystay/target/*.war",
+                        "target": "nrepo"}]
+                    }"""
+        server.upload(uploadSpec)
+        }
+    } 
+    stage('Build image') {
+        dir("/var/lib/jenkins/workspace/mystaywar/mvc/mystay/")
+            {
+                sh "docker build -t m1056287/mystay ."
+            } 
+            
+    }
+    stage('push to dockerhub')
+    {
+        sh "docker login -u m1056287 -p DevOpsTeam001"
+        sh "docker push m1056287/mystay"
+    }
+    stage('Run container')
+    {
+        dir("/var/lib/jenkins/workspace/mystaywar/mvc/mystay/")
+            {
+                sh "docker run -d -it -p 8084:8080 --name stay_container1 -v /var/lib/tomcat8/conf/tomcat-users.xml:/usr/local/tomcat/conf/tomcat-users.xml -v /var/lib/tomcat8/conf/context.xml:/usr/local/tomcat/webapps/manager/META-INF/context.xml m1056287/mystay "
+            } 
+            
+    }
+}
